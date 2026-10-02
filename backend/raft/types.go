@@ -13,36 +13,49 @@ type LogEntry struct {
 	Command string `json:"command"`
 }
 
+// The four RPC payloads from Figure 2 of the Raft paper.
+
 type RequestVoteArgs struct {
-	Term         int `json:"term"`
-	CandidateID  int `json:"candidate_id"`
-	LastLogIndex int `json:"last_log_index"`
-	LastLogTerm  int `json:"last_log_term"`
+	Term         int
+	CandidateID  int
+	LastLogIndex int
+	LastLogTerm  int
 }
 
 type RequestVoteReply struct {
-	Term        int  `json:"term"`
-	VoteGranted bool `json:"vote_granted"`
+	Term        int
+	VoteGranted bool
 }
 
 type AppendEntriesArgs struct {
-	Term         int        `json:"term"`
-	LeaderID     int        `json:"leader_id"`
-	PrevLogIndex int        `json:"prev_log_index"`
-	PrevLogTerm  int        `json:"prev_log_term"`
-	Entries      []LogEntry `json:"entries"`
-	LeaderCommit int        `json:"leader_commit"`
+	Term         int
+	LeaderID     int
+	PrevLogIndex int
+	PrevLogTerm  int
+	Entries      []LogEntry
+	LeaderCommit int
 }
 
 type AppendEntriesReply struct {
-	Term       int  `json:"term"`
-	Success    bool `json:"success"`
-	MatchIndex int  `json:"match_index"`
+	Term       int
+	Success    bool
+	MatchIndex int // Last log index the follower now shares with the leader.
 }
 
+// Message is one RPC travelling between nodes; Payload is one of the four types above.
 type Message struct {
-	From    int         `json:"from"`
-	To      int         `json:"to"`
-	Type    string      `json:"type"` // "RequestVote", "RequestVoteReply", "AppendEntries", "AppendEntriesReply"
-	Payload interface{} `json:"payload"`
+	From, To int
+	Payload  any
+}
+
+// Network is the simulated network: one buffered inbox channel per node id.
+type Network map[int]chan Message
+
+// Send never blocks: if the receiver's inbox is full the message is dropped,
+// just like a lossy real network. Raft retries, so drops are harmless.
+func (n Network) Send(msg Message) {
+	select {
+	case n[msg.To] <- msg:
+	default:
+	}
 }
